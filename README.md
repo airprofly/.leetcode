@@ -11,6 +11,18 @@
 
 # 技巧列表
 
+## 时间先后(先进先出)问题
+- **队列(queue)** 是一种先进先出(FIFO)的数据结构，适用于需要按顺序处理元素的场景。**时间滑动窗口**的问题,这里的固定大小,通过`手动计数`维护
+- **权重自动排序** 将时间先后顺序转化为权重排序：能实现自动排序的有
+  - `priority_queue(堆)` :中间插入和删除时间复杂度为`O(log n)`,理论上和`set`,`map`类似,但实际运行时间会更快一些,因为底层实现更简单,没有`红黑树`那么复杂的旋转操作。但是不支持`按值查找(存不存在)、修改和删除`操作,只能删除堆顶元素,即不能访问和操作中间元素。
+  - `set`：支持自动排序和按值查找、删除操作,时间复杂度为`O(log n)`,底层实现为`红黑树`，而且自带`去重`功能。可以操作中间元素,而且存储时所有元素严格有序
+  - `map`: 支持键值对存储，按键自动排序，时间复杂度为`O(log n)`，底层实现为`红黑树`。适用于需要按键排序且需要存储额外信息的场景。可以操作中间元素,而且存储时所有元素严格有序
+
+
+## 动态修改后频繁查询
+- `单点动态修改` 注意：在第一次查询完后，如果动态单点修改，其实后面很大一部的元素第二次去查询时是没有变化的，只有与被修改点相关的元素才会发生变化，所以可以在每个节点添加`统计标记(缓存)`，避免重复计算,但单点修改时，需要更新与该节点相关的所有节点的缓存标记。这样可以避免每次查询时不必要的重复计算，提高查询效率。
+
+
 ## 中间节点 
 ### 对半分下标问题(思考的时候直接使用 2n 或 2n-1 作为下标带进去算比一下较好理解)
 - 当对半分`0~n`下标的问题时，如果为`奇数`,则`i<=(n-1)/2`是不包含中间节点,即后半部分比前半部分多一个节点的;`i<=n/2`则包含中间节点,前面比后面多一个中间节点。
@@ -61,6 +73,96 @@
     - 实现基于`哈希表`，查询、插入、删除的时间复杂度为`O(1)`的平均时间复杂度，但在最坏情况下可能退化为`O(n)`。
 - `vector(数组)`:
   - 适用于`键`为`整数`类型,且`范围较小且分布较密集`的情况。可以实现`O(1)`的查询(通过索引直接访问)。
+
+## 组合问题(选择一些元素问题)
+### 从 `n` 个元素中选择任意个元素的组合
+- **不可重复**选择:
+  - `2`进制模拟，即从 `0` 到 `2^n - 1` 遍历，每个数的二进制表示对应一个组合，`1` 表示选择该元素，`0` 表示不选择该元素。
+    ```cpp
+    vector<vector<int>> subsets(vector<int>& nums) {
+        int n = nums.size();
+        vector<vector<int>> result;
+        for (int i = 0; i < (1 << n); ++i) { // 遍历从 0 到 2^n - 1
+            vector<int> subset;
+            for (int j = 0; j < n; ++j) {
+                if (i & (1 << j)) { // 检查第 j 位是否为 1
+                    subset.push_back(nums[j]);
+                }
+            }
+            result.push_back(subset);
+        }
+        return result;
+    }
+    ```
+   - `递归回溯`: 递归可以在当前的选择中再多生出`n`中不同选择路径。递归中根据`是否`选择`当前元素`来实现分支，**注意** 在选择了的分支递归完之后的`回溯`阶段记得`撤销选择`,以便进行下一次选择。<br>
+   从左到右按照循序判断每个元素`选/不选`,实现二叉树的分支。
+    ```cpp
+    // 或者 这种没有剪枝
+    void backtrack(vector<int>& nums, int index, vector<int>& current, vector<vector<int>>& result) {
+        if (index == nums.size()) {
+            result.push_back(current); // 将当前组合加入结果
+            return;
+        }
+        // 不选择当前元素
+        backtrack(nums, index + 1, current, result);
+        
+        // 选择当前元素
+        current.push_back(nums[index]);
+        backtrack(nums, index + 1, current, result);
+        current.pop_back(); // 撤销选择，回溯
+    }
+
+    // 或者 这种有剪枝  index 表示起始下标
+    void backtrack(vector<int>& nums, int start, vector<int>& current, vector<vector<int>>& result) {
+        if (start > nums.size()){
+            result.push_back(current); // 将当前组合加入结果
+            return;
+        }
+        result.push_back(current); // 将当前组合加入结果
+        for (int i = start; i < nums.size()+1; ++i) {
+            current.push_back(nums[i]); // 选择当前元素
+            backtrack(nums, i + 1, current, result); // 递归选择下一个元素
+            current.pop_back(); // 撤销选择，回溯
+        }
+    }
+    ```
+- **可重复选择**:
+    - `递归回溯`: 递归中根据`是否`选择`当前元素`来实现分支,注意在选择了的分支递归时,下一个递归传入的`起始下标`不变,以便实现`重复选择`当前元素。<br>
+    这里和上面的`不可重复选择`的区别就在于`递归调用时传入的下标不同`,一个是`i+1`(**不可重复**),一个是`i`(**可重复**，下次还可以从`i`开始选择)。
+    ```cpp
+    void backtrack(vector<int>& nums, int start, vector<int>& current, vector<vector<int>>& result) {
+        result.push_back(current); // 将当前组合加入结果
+        for (int i = start; i < nums.size(); ++i) {
+            current.push_back(nums[i]); // 选择当前元素
+            backtrack(nums, i, current, result); // 递归选择下一个元素，注意这里传入的是 i 而不是 i + 1
+            current.pop_back(); // 撤销选择，回溯
+        }
+    }
+    ```
+    
+## 配对问题
+- 使用`栈`：栈可以实现`配对`问题,如括号匹配问题,遇到左括号入栈,遇到右括号出栈,最后栈为空则表示配对成功。
+  ```cpp
+  bool isValid(string s) {
+      stack<char> st;
+      for (char c : s) {
+          if (c == '(' || c == '{' || c == '[') {
+              st.push(c);
+          } else {
+              if (st.empty()) return false;
+              char top = st.top();
+              st.pop();
+              if ((c == ')' && top != '(') ||
+                  (c == '}' && top != '{') ||
+                  (c == ']' && top != '[')) {
+                  return false;
+              }
+          }
+      }
+      return st.empty();
+  }
+  ```
+
 
 ## 反序问题：反转字符串/数组的方法
 - 使用`双指针`法:
@@ -158,6 +260,274 @@ while (left < right) {
     }
 }
 ```
+
+## 有向无环图(DAG)的拓扑排序
+- **定义**：拓扑排序是对有向无环图(DAG)的节点进行线性排序，使得对于每一条有向边 (u, v)，节点 u 在节点 v 之前出现。
+
+**常见问题**：
+- 依赖(先后)关系问题 **本质上** 也是判断有没有环，没有环则可以完成所有任务;有循环依赖则无法完成所有任务   
+- 是否存在环
+
+**解法**：
+- **Kahn算法(基于入度的BFS)**：正向顺序 / 谁先能开始做
+  - 计算每个节点的入度。
+  - 将所有入度为0的节点`(入度为0则代表没有还没准备好的前驱节点，可以开始工作)`加入队列。
+  - 不断从队列中取出节点，加入拓扑排序结果，并将其邻居节点的入度减1，如果邻居节点的入度变为0，则加入队列。
+  - 如果最终拓扑排序结果包含所有节点，则图中无环；否则，存在环。
+  ![alt text](images/image-5.png)
+```C++
+class Dag{
+private: 
+    vector<vector<int>> graph;
+    vector<int> inDegree;
+public:
+    bool topologicalSort(){
+        int n=graph.size();
+        queue<int> q;
+        for(int i=0;i<n;i++){
+            if(inDegree[i]==0) q.push(i);
+        }
+        int count=0;
+        while(!q.empty()){
+            int node=q.front();
+            q.pop();
+            count++;
+            for(int neighbor:graph[node]){
+                inDegree[neighbor]--;
+                if(inDegree[neighbor]==0) q.push(neighbor);
+            }
+        }
+        return count==n; // 如果 count 等于节点数，说明无环
+    }
+}
+```
+  
+- **DFS(深度优先搜索)**：反向顺序(溯源) / 在完成这项任务前，需要先完成哪些任务
+  - 使用递归 DFS 遍历图，记录每个节点的访问状态（未访问、正在访问、没有环状依赖）。
+  - 如果在 DFS 过程中遇到一个正在访问的节点，说明存在环。
+  - 否则，在完成对一个节点的所有邻居的访问后，将该节点加入拓扑排序结果。
+```C++
+class Dag{
+private: 
+    vector<vector<int>> graph;
+    vector<int> visitStatus; // 0: 未访问, 1: 正在访问, 2: 已访问且无环
+public:
+    bool dfs(int node){
+        if(visitStatus[node]==1) return false; // 已经访问过，发现环
+        if(visitStatus[node]==2) return true; // 已经访问过且无环，直接返回
+        visitStatus[node]=1; // 标记为正在访问
+        for(int neighbor:graph[node]){
+            if(!dfs(neighbor)) return false; // 递归访问邻居，发现环则返回 false
+        }
+        visitStatus[node]=2; // 标记为已访问且无环
+        return true;
+    }
+    
+    bool topologicalSort(){
+        int n=graph.size();
+        visitStatus.resize(n,0);
+        for(int i=0;i<n;i++){
+            if(visitStatus[i]==0){
+                if(!dfs(i)) return false; // 发现环，返回 false
+            }
+        }
+        return true; // 无环，返回 true
+    }
+}
+```
+   **缺点**：只能判断是否有环，无法得到`全局的`具体的拓扑排序结果，只能得到某个`点`的拓扑排序结果(`依赖`关系链)。
+
+## 最短路径问题
+### 无权图
+**常见表现**：
+- 最短路径
+- 最少步数/跳数/操作数
+
+**解法**:
+- **BFS(广度优先搜索)**：
+  - 适用于无权图的最短路径问题，因为 BFS 会逐层扩展节点，保证第一次到达目标节点时所经过的路径是最短的。
+  - 使用队列存储当前层的节点，逐层遍历，直到找到目标节点。
+
+  - 使用`bfs`队列方式模拟 同时从多个`起点`并`同时`开始搜索
+```C++
+int bfsShortestPath(GraphNode* start, GraphNode* target) {
+    queue<GraphNode*> q;
+    unordered_set<GraphNode*> visited; // 使用 hashset 判断有没有访问过，可以实现 O(1) 的查找
+    q.push(start);
+    visited.insert(start);
+    int steps = 0;
+
+    while (!q.empty()) {
+        int size = q.size();
+        for (int i = 0; i < size; i++) {
+            GraphNode* node = q.front();
+            q.pop();
+            if (node == target) {
+                return steps; // 找到目标节点，返回步数
+            }
+            for (GraphNode* neighbor : node->neighbors) {
+                if (visited.find(neighbor) == visited.end()) {
+                    visited.insert(neighbor);
+                    q.push(neighbor);
+                }
+            }
+        }
+        steps++;
+    }
+    return -1; // 目标节点不可达
+}
+```
+
+### 有权图
+- **Dijkstra算法**：
+  - 适用于边权非负的有权图的最短路径问题。
+  - 使用优先队列（最小堆）来选择当前距离起点最近的节点，逐步更新其邻居节点的距离，直到找到目标节点或遍历完所有节点。
+
+
+
+## 最近公共祖先(Lowest Common Ancestor, LCA)问题
+- **定义**：在一棵树中，节点 `p` 和 `q` 的最近公共祖先是指一个节点 `x`，满足 `x` 是 `p` 和 `q` 的祖先，并且 `x` 的深度尽可能大。
+- **解法**：
+### 递归法
+使用递归的方式，分别在左右子树中寻找 `p` 和 `q`，如果在某个子树中找到了其中一个节点，则返回该节点；如果在两个子树中都找到了节点，则当前节点就是最近公共祖先。
+```C++
+TreeNode* lowestCommonAncestor(TreeNode* root, TreeNode* p, TreeNode* q) {
+        if(root==nullptr || root==p || root==q) return root;
+        TreeNode* left = lowestCommonAncestor(root->left,p,q);
+        TreeNode* right = lowestCommonAncestor(root->right,p,q);
+        if(left==nullptr) return right;
+        if(right==nullptr) return left;
+        return root;
+    }
+```
+
+### 递归回溯染色法
+在递归回溯的过程中，对回溯经过的节点进行染色(标记)，当回溯到一个节点时，如果该节点已经被染色了，说明该节点是 `p` 和 `q` 的公共祖先。其实这个本质和上面的递归法是一样的,只是上面是隐式地通过函数调用栈来处理的。
+
+### 树的father数组法
+对于`频繁询问`且`修改少`的方式,通过预处理树的父节点信息,每个节点维护一个`father`数组,其中`father[i][j]`表示节点 `i` 的第 `2^j` 个祖先节点。通过预处理，可以在 O(n log n) 的时间内构建这个父节点数组，然后在查询时，可以通过倒序枚举 `j` 从大到小，判断 `p` 和 `q` 的第 `2^j` 个祖先是否相同，如果不同，则将 `p` 和 `q` 分别移动到它们的第 `2^j` 个祖先节点，直到找到最近公共祖先 ; 如果相同，说明步数跳多了，不能跳，需要继续枚举更小的 `j` 进行判断，直到找到最近公共祖先。
+
+## dfs
+### 递归 dfs
+### 迭代 dfs
+一直往左儿子节点走，直到没有左儿子节点了，再回退到父节点。在一直往左走时，使用一个`stack`来存储当前节点的右节点还没遍历的父节点，等待当前节点没有左儿子节点了，就回退到父节点，继续往右走。
+```C++
+void dfs(TreeNode* root) {
+    stack<TreeNode*> st; // 存储当前节点的右节点还没遍历的父节点，便于回溯
+    TreeNode* cur = root;
+    while (cur != nullptr || !st.empty()) {
+        while (cur != nullptr) { // 当 cur 不为空时，继续往左走；当 cur 为空时，说明当前是走到了 null 节点，即上一轮走到了叶子节点，现在需要回退到父节点了
+            st.push(cur);
+            cur = cur->left; // 一直往左走
+        }
+        cur = st.top(); // 现在 cur 是 null 了，需要在 stack 中弹出最低还有右节点没有遍历的父节点了
+        st.pop();
+        cur = cur->right; // 因为栈中弹出的节点的左节点已经遍历完了，所以现在需要往右走了
+    }
+}
+```
+### morris dfs
+通过修改`左子树`的`最右节点`的`右指针`来实现`迭代 dfs`,这样相当于可以一条路不用回头,不需要额外空间存储`父节点`了
+```C++
+void dfs(TreeNode* root) {
+    TreeNode* cur = root;
+    while (cur != nullptr) { // 当 cur 不为空时，说明还没有遍历完所有节点
+        if (cur->left == nullptr) { // 没有左子树了，直接访问当前节点，然后往右走
+            // 访问 cur 节点
+            cur = cur->right;
+        } else { // 有左子树了，需要找到左子树的最右节点
+            TreeNode* pre = cur->left;
+            while (pre->right != nullptr && pre->right != cur) { // 找到左子树的最右节点 这里的 pre->right != cur 是为了判断是否已经建立了连接了，如果已经建立了连接了，说明左子树已经遍历完了，现在需要访问当前节点了，然后断开连接，往右走 (采用的是 中序遍历 的顺序，如果是前序遍历的话，这里就不需要判断是否已经建立了连接了，直接建立连接后访问当前节点，然后往左走即可)
+                pre = pre->right;
+            }
+            if (pre->right == nullptr) { // 还没有建立连接，建立连接后继续往左走
+                pre->right = cur; // 建立连接
+                cur = cur->left; // 往左走
+            } else { // 已经建立连接了，说明左子树已经遍历完了，现在需要访问当前节点了，然后断开连接，往右走
+                pre->right = nullptr; // 断开连接
+                // 访问 cur 节点
+                cur = cur->right; // 往右走
+            }
+        }
+    }
+}
+```
+
+## 字典树（Trie）
+
+当有`大量序列`信息且`单个`序列元素`值域`范围不大(如字符串)时，可以使用`字典树(Trie)`对这些序列信息基于`前缀信息`进行`记忆存储`
+
+**常见应用场景**：
+   - 自动补全系统
+   - 拼写检查
+   - `前缀`匹配查询 (后面`分枝`)
+
+**优点**：
+    - 这样基于树的结构，大量序列信息必然出现很多相同的`前缀`,这样共享`前缀`可以节省存储空间,在`末尾`再进行`分流（分枝）`，这样也为`自动补全`提供了便利,不用当一个元素匹配失败时重新开始匹配另一个重走了一遍前面的相同前缀。
+
+**与 hash 映射对比**：
+- `Trie` 适用于需要频繁进行`前缀`查询的场景，且序列元素值域较小且`记忆的元素非常多`的情况。
+- `Hash function` 转化为`32`进制进行存储:
+    - **优点**： 对于`完整`序列的比较，只要比较`hash`值即可，速度非常快。
+    - **缺点**：
+       - 无法进行`前缀`查询,因为序列长度不同，无法确定前缀的`hash`值向前移动多少位单位进制即 $*base^k$(k 移动的位数）。
+       - 如果要`记忆`的元素非常多，这种方法每个元素都需要存储一个`hash`值，存储空间开销较大。
+       - `序列长度`非常长时，C++ 中的基本数据类型可能无法存储完整的 `hash` 值，可能需要使用大数库，增加实现复杂度。
+```C++
+class Trie {
+private:
+    struct TrieNode_{
+        bool isEnd;
+        vector<TrieNode_*> next;
+        TrieNode_():isEnd(false),next(26,nullptr){}
+    };
+    TrieNode_* root_;
+
+public:
+    Trie() {
+        root_ = new TrieNode_();
+    }
+    
+    void insert(string word) {
+        insert_(root_, word);
+    }
+    
+    bool search(string word) {
+        TrieNode_* root=this->root_;
+        for(const char& c:word){
+            if(root->next[c-'a']==nullptr) return false;
+            root=root->next[c-'a'];
+        }
+        return root->isEnd;
+    }
+    
+    bool startsWith(string prefix) {
+        TrieNode_* root=this->root_;
+        for(const char& c:prefix){
+            if(root->next[c-'a']==nullptr) return false;
+            root=root->next[c-'a'];
+        }
+        return true;
+    }
+private:
+    void insert_(TrieNode_* root,string& word){
+        if(word.empty())return;
+        char c=word[0];
+        if(root->next[c-'a']==nullptr) {
+            root->next[c-'a']=new TrieNode_();
+        }
+        word.erase(word.begin(),word.begin()+1);
+        if(word.empty()){
+            root->next[c-'a']->isEnd=true;
+            return;
+        }
+        insert_(root->next[c-'a'],word);
+        return;
+    }
+};
+```
+
+
 
 ## 单调栈
 - **单调栈** 是一种特殊的栈结构，栈内元素保持单调递增或单调递减的顺序。
