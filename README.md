@@ -74,8 +74,173 @@
 - `vector(数组)`:
   - 适用于`键`为`整数`类型,且`范围较小且分布较密集`的情况。可以实现`O(1)`的查询(通过索引直接访问)。
 
+## 定理
+
+### 四平方和定理
+> 四平方和定理是数论中的一个重要定理，指出每个自然数都可以表示为四个整数的平方和。换句话说，对于任何自然数`n`，都存在整数`a`、`b`、`c`、`d`，使得 `n = a^2 + b^2 + c^2 + d^2`。
+
+**更强的结论**：
+- 当 $n = 4^k(8m+7)$ 时，`n`必须表示为四个整数的平方和。
+- 当 $n\neq 4^k(8m+7)$ 时，`n`可以表示为三个整数的平方和。
+- 当 $n = a^2 + b^2$ 且 $a$ 和 $b$ 不是同时为零时，`n`可以表示为两个整数的平方和。
+- 当 $n$ 是完全平方数时，`n`可以表示为一个整数的平方和。
+
+```c++
+class Solution {
+public:
+    // 判断是否为完全平方数
+    bool isPerfectSquare(int x) {
+        int y = sqrt(x);
+        return y * y == x;
+    }
+
+    // 判断是否能表示为 4^k*(8m+7)
+    bool checkAnswer4(int x) {
+        while (x % 4 == 0) {
+            x /= 4;
+        }
+        return x % 8 == 7;
+    }
+
+    int numSquares(int n) {
+        if (isPerfectSquare(n)) {
+            return 1;
+        }
+        if (checkAnswer4(n)) {
+            return 4;
+        }
+        for (int i = 1; i * i <= n; i++) {
+            int j = n - i * i;
+            if (isPerfectSquare(j)) {
+                return 2;
+            }
+        }
+        return 3;
+    }
+};
+
+```
+
+## 递归记录路径问题
+处理方式分为两种：
+- **借用全局(对象普通)变量递归下降到叶子节点时记录路径**：在递归函数中传入一个`当前路径`参数，表示从根节点到当前节点的路径。当递归到达叶子节点时，将当前路径加入结果集。<br>
+    - **优点**:
+      - 借助全局变量或者对象的普通变量，可以避免在回溯时对于同一子树回溯时，在父节点及以上的祖宗节点中重复拼接相同的路径,从而提高效率。因为回溯相当于对于相同父节点的每个叶子节点都要一步一步的拼接复制相同路径<br>
+      - 直接往后面添加元素,避免在头部插入元素的低效问题。
+    - **缺点**：
+      - 看后面方法的对比
+      ```cpp
+      class Solution {
+          private:
+              vector<vector<int>> result_;
+              vector<int> currentPath_;
+          private:
+              void backtrack(TreeNode* node) {
+                  if (node == nullptr){
+                      result_.push_back(currentPath_); // 到达叶节点，记录路径
+                      return;
+                  }
+                  currentPath_.push_back(node->val); // 添加当前节点到路径
+                  backtrack(node->left); // 递归左子树
+                  backtrack(node->right); // 递归右子树
+                  currentPath_.pop_back(); // 回溯，移除当前节点
+              }
+      }
+      ```
+- **递归回溯记录路径**：在`回溯`时,将子节点的路径结果返回给父节点,父节点再将自己的值添加到子节点路径的前面,形成完整路径。<br>
+    - **缺点**：
+      - 这里的返回值返回上一层时编译器可以利用`RVO(返回值优化)`来避免在父节点调用栈中重新赋值拷贝子节点返回的路径结果,从而提高效率,所以这里的效率几乎不用考虑。
+      - 但有一点需要注意的时，这时往往涉及到在`vector`的**开头插入元素**的问题,这时可以使用`deque`来代替`vector`,因为`deque`在头部插入元素的时间复杂度为`O(1)`,而`vector`在头部插入元素的时间复杂度为`O(n)`。
+    - **优点**：
+      - 这种方法不需要额外的全局变量，代码更简洁，逻辑更清晰。而上面一种涉及到外部变量，使用前**必须**将涉及到的变量清空,否则会影响结果，可重入性差，副作用大。
+      - 这个方法对于会出现分支时多次处理相同区域子问题时，可以使用`记忆化`来避免重复计算，从而提高效率。而上面一种由于在`叶节点`时才记录路径，回溯时无法知道尾部区域的子问题的`完整返回答案`，所以无法使用`记忆化`来优化。
+      ```cpp
+      unordered_map<TreeNode*, vector<vector<int>>> memory; // 记忆化存储子问题结果 
+      vector<vector<int>> path(TreeNode* root){
+          if(root == nullptr){
+              return {{}}; // 到达叶节点，返回空路径
+          }
+          //!!! 优势：可以使用记忆化避免重复计算
+          if(memory.count(root)) return memory[root]; // 使用记忆化避免重复计算
+  
+          vector<vector<int>> result;
+          for(auto& subPath : path(root->left)){
+              subPath.insert(subPath.begin(), root->val); // 在路径前面插入当前节点
+              result.push_back(subPath);
+          }
+          for(auto& subPath : path(root->right)){
+              subPath.insert(subPath.begin(), root->val); // 在路径前面插入当前节点
+              result.push_back(subPath);
+          }
+  
+          memory[root] = result; // 记录结果，避免重复计算
+  
+          return result;
+      }
+      ```
+## 地图问题
+**常用技巧**：
+   - **对角线坐标关系**：对于一个坐标点`(x, y)`，其所在的对角线可以通过`x + y`或者`x - y`来唯一确定。即对于同一条对角线上的所有点，它们的`x + y`或者`x - y`的值是相同的。
+   - **存储问题**：对于地图问题，如果需要频繁访问某个坐标点的值，可以使用`二维数组`或者`哈希表`来存储地图数据。对于稀疏地图，可以使用`哈希表`来存储非空坐标点的数据，以节省空间,使用`unordered_set`可以实现`O(1)`的访问;对于密集地图，可以使用`二维数组`来存储数据，以提高访问效率。<br>
+      **讨论**： `unordered_set` ,`bitset`和 `手动位图`
+      - 三者都可以实现`O(1)`的访问效率
+      - 在`非连续`的状态信息存储(如坐标点)中,使用`unordered_set`相当于只要存储`需要记住的信息`,在信息`稀疏`的情况下可以节省空间； 而在`连续紧凑`的状态信息中如(地图，表格等),可以将状态信息压缩到`bitset`或者`手动位图`中,相当于一个`byte`就可以存储`8`个状态空间，以节省空间和提高访问效率
+      - 手动操作位图时常用技巧：
+        - `设置第i位为1`: `bitmap |= (1 << i);`
+        - `清除第i位(设置为0)`: `bitmap &= ~(1 << i);`
+        - `检查第i位是否为1`: `(bitmap & (1 << i)) != 0`
+        - `切换第i位的状态`: `bitmap ^= (1 << i);`
+        - `最低位的1`: `bitmap & (-bitmap)`
+        - `清除最低位的1`: `bitmap & (bitmap - 1)`
+        - `最低为的1的位置`: `__builtin_ctz(bitmap)` (GCC内置函数，返回bitmap中最低位的1的位置，0表示最低位是第0位)
+        ```c++
+        int availablePositions = ((1 << n) - 1) & (~(columns | diagonals1 | diagonals2)); // 计算当前行可用的位置
+        while (availablePositions != 0) {
+            int position = availablePositions & (-availablePositions); // 获取最低位的1，表示一个可用的位置
+            availablePositions = availablePositions & (availablePositions - 1); // 清除最低位的1，表示这个位置已经被使用
+            int column = __builtin_ctz(position); // 获取这个位置对应的列索引
+        }
+        ```
+## 回文串问题
+- **双指针法**：
+  只判断单个字符串是否为回文串。
+  ```cpp
+  bool isPalindrome(const string& s) {
+      int left = 0;
+      int right = s.size() - 1;
+      while (left < right) {
+          if (s[left] != s[right]) {
+              return false; // 字符不相同，非回文串
+          }
+          left++;
+          right--;
+      }
+      return true; // 所有字符都相同，是回文串
+  }
+  ```
+- **动态规划**：
+  对于一个子串的`任意长度子串`是否为回文串，可以使用动态规划来预处理。因为如果每次去判断的话，会有大量重复计算，而利用动态规划的话可以充分利用里面已经计算过的子串结果，从而提高效率。例如：`aabbaa`，当判断`abba`是否为回文串时，可以利用已经计算过的`bb`是否为回文串的结果，不用基础用双指针走进`bb`中间去判断。<br>
+  ```cpp
+    vector<vector<bool>> dp(n, vector<bool>(n, true)); // dp[i][j] 表示子串 s[i..j] 是否为回文串，默认反序也为 true
+    for (int i = n - 2; i >= 0; --i) { // 注这里是从后往前遍历,因为 dp[i][j] 依赖于 dp[i+1][j-1] 和 s[i]==s[j]  遍历顺序是和递推公式相关的，必须保证 dp[i+1][j-1] 已经被计算过
+        for (int j = i+1; j < n; ++j) { 
+            dp[i][j] = (s[i] == s[j]) && dp[i + 1][j - 1]; // 如果为2个字符串，则i+1>j-1,反序了，默认是 true
+        }
+    }
+    ```
+   **思考点**：
+   - **动态规划** 相当于知道**往哪个方向**去利用已知信息，然后提前利用这些信息推出**所有节点**
+   - **记忆化** 相当于在**需要的时候**才去判断有没有计算过，然后利用已知信息推出**部分节点**，不会计算所有节点，只有需要的节点才会被计算。 如果**重复计算的点**有出现时刻某个**顺序趋势**的话，可以使用**动态规划**逆着这个趋势，在要利用已知信息的节点**之前**就提前计算出这些已知信息，从而避免重复计算。
+
+
 ## 组合问题(选择一些元素问题)
 ### 从 `n` 个元素中选择任意个元素的组合
+
+这里的随便选择`k`个元素，即$\sum_{k=0}^{n} {C_n^{k}}$组合问题. 即**随便选几个**元素的问题。**思路**：
+`第一个元素`可以依次在`left~right`中选择，然后递归选择下一个元素，即从`selectPos+1~right`中选择下一个`第一个`元素的子问题。
+
+这个和将一段`连续区间`划分为`若干段`的问题是一样的,即从`left~right`中选择第一个`划分点结尾`,然后递归地选择下一个第一个`划分点结尾`。其中对于相同子问题区域会出现重复搜索,可以使用`记忆化`来避免重复计算。
+
 - **不可重复**选择:
   - `2`进制模拟，即从 `0` 到 `2^n - 1` 遍历，每个数的二进制表示对应一个组合，`1` 表示选择该元素，`0` 表示不选择该元素。
     ```cpp
@@ -95,37 +260,47 @@
     }
     ```
    - `递归回溯`: 递归可以在当前的选择中再多生出`n`中不同选择路径。递归中根据`是否`选择`当前元素`来实现分支，**注意** 在选择了的分支递归完之后的`回溯`阶段记得`撤销选择`,以便进行下一次选择。<br>
-   从左到右按照循序判断每个元素`选/不选`,实现二叉树的分支。
-    ```cpp
-    // 或者 这种没有剪枝
-    void backtrack(vector<int>& nums, int index, vector<int>& current, vector<vector<int>>& result) {
-        if (index == nums.size()) {
-            result.push_back(current); // 将当前组合加入结果
-            return;
-        }
-        // 不选择当前元素
-        backtrack(nums, index + 1, current, result);
-        
-        // 选择当前元素
-        current.push_back(nums[index]);
-        backtrack(nums, index + 1, current, result);
-        current.pop_back(); // 撤销选择，回溯
-    }
+   从左到右按照循序判断每个元素`选/不选`,实现二叉树的分支。<br>
+        ```cpp
+        // 或者 这种没有剪枝
+        void backtrack(vector<int>& nums, int index, vector<int>& current, vector<vector<int>>& result) {
+            if (index == nums.size()) {
+                result.push_back(current); // 将当前组合加入结果
+                return;
+            }
+            // 不选择当前元素
+            backtrack(nums, index + 1, current, result);
 
-    // 或者 这种有剪枝  index 表示起始下标
-    void backtrack(vector<int>& nums, int start, vector<int>& current, vector<vector<int>>& result) {
-        if (start > nums.size()){
-            result.push_back(current); // 将当前组合加入结果
-            return;
-        }
-        result.push_back(current); // 将当前组合加入结果
-        for (int i = start; i < nums.size()+1; ++i) {
-            current.push_back(nums[i]); // 选择当前元素
-            backtrack(nums, i + 1, current, result); // 递归选择下一个元素
+            // 选择当前元素
+            current.push_back(nums[index]);
+            backtrack(nums, index + 1, current, result);
             current.pop_back(); // 撤销选择，回溯
         }
-    }
-    ```
+    
+        // 或者 这种有剪枝  index 表示起始下标
+        void backtrack(vector<int>& nums, int start, vector<int>& current, vector<vector<int>>& result) {
+            // 如果会出现搜索相同子问题区间，可以添加记忆化避免重复计算，实现剪枝。但这里使用的是 下降过程借用对象普通变量进行存储路径，无法使用记忆化。
+            if (start > nums.size()){
+                result.push_back(current); // 将当前组合加入结果
+                return;
+            }
+            result.push_back(current); // 将当前组合加入结果
+            for (int i = start; i < nums.size()+1; ++i) {
+                current.push_back(nums[i]); // 选择当前元素
+                backtrack(nums, i + 1, current, result); // 递归选择下一个元素
+                current.pop_back(); // 撤销选择，回溯
+            }
+        }
+        ```
+    - `动态规划`: 这里的`记忆化`如果**访问顺序**有一定的**先后规律**的话,可以使用`动态规划`来提前计算出所有子问题的结果,从而避免重复计算。
+    一般都能写出`递推关系式`.<br>
+     **与树展开联系理解**：
+      - `树` 相当于每一层的节点针对于当前下标元素的`选/不选`分支,最终的叶子节点会有`2^n`个,如果遍历到每一个叶子节点，则时间复杂度为`O(2^n)`。值的注意的是，其实对于每一层来说(即使是最后一层)，每个分叉其实都是一样的操作含义,即`选/不选`当前元素,那为什么当前层会出现`2^k`个分叉呢？ 因为虽然对于当前层来说每个分叉的操作含义是一样的,但是由于之前层的分叉已经产生了`2^(k-1)`个分叉了,即相当于现在`重复`分叉虽然操作含义一样，但`同时记录了之前的选择状态(路径)`。即如果不考虑记录之前的状态的话，可以将每一层都压缩到`一个分叉`,即`选/不选`当前元素,这样时间复杂度就变成了`O(n)`了，不用遍历最后一层的每一个叶子节点了。
+      
+      - `动态规划` 比如(`背包问题`)，则`dp[i][j]`每个`i`对应于`树`的每一层,$dp[i][j]=max(dp[i-1][j], dp[i-1][j-weight[i]]+value[i])$相当于对于当前层的每个分叉(选/不选当前元素)的结果,即`选/不选`当前元素的结果。但由于同样希望保存有一定的状态，但又不希望出现太多的状态(分叉),所以使用了一种`相对更为紧凑`的`状态表示方法`,即`j`表示到当前考虑的前`i`个选择中背包的容量`j`所能达到的最大价值,它相当于不用记录之前`树`每一种`选/不选`的`路径` `O(2^n)`，而使用一种`压缩的状态表示方法`来记录状态,相当于只要记录`volume`种状态即可`O(volume)`，特别是**层数**(**物品，可选择对象**)增加时，`动态规划`的优势就会越来越明显了，`树`的分叉会呈指数级增长，而`动态规划`的状态数仍然是`volume`，所以`动态规划`在处理大规模问题时通常比`树`更高效。
+
+
+
 - **可重复选择**:
     - `递归回溯`: 递归中根据`是否`选择`当前元素`来实现分支,注意在选择了的分支递归时,下一个递归传入的`起始下标`不变,以便实现`重复选择`当前元素。<br>
     这里和上面的`不可重复选择`的区别就在于`递归调用时传入的下标不同`,一个是`i+1`(**不可重复**),一个是`i`(**可重复**，下次还可以从`i`开始选择)。
@@ -141,28 +316,86 @@
     ```
     
 ## 配对问题
-- 使用`栈`：栈可以实现`配对`问题,如括号匹配问题,遇到左括号入栈,遇到右括号出栈,最后栈为空则表示配对成功。
-  ```cpp
-  bool isValid(string s) {
-      stack<char> st;
-      for (char c : s) {
-          if (c == '(' || c == '{' || c == '[') {
-              st.push(c);
-          } else {
-              if (st.empty()) return false;
-              char top = st.top();
-              st.pop();
-              if ((c == ')' && top != '(') ||
-                  (c == '}' && top != '{') ||
-                  (c == ']' && top != '[')) {
-                  return false;
-              }
+- **已经生成了的序列**<br>
+配对判断或者寻找对应的配对元素
+  - 使用`栈`：栈可以实现`配对`问题,如括号匹配问题,遇到左括号入栈,遇到右括号出栈,最后栈为空则表示配对成功。
+    ```cpp
+    bool isValid(string s) {
+        stack<char> st;
+        for (char c : s) {
+            if (c == '(' || c == '{' || c == '[') {
+                st.push(c);
+            } else {
+                if (st.empty()) return false;
+                char top = st.top();
+                st.pop();
+                if ((c == ')' && top != '(') ||
+                    (c == '}' && top != '{') ||
+                    (c == ']' && top != '[')) {
+                    return false;
+                }
+            }
+        }
+        return st.empty();
+    }
+    ```
+- **需要生成配对的序列**<br>
+   - `递归回溯`：利用**左边匹配的元素个数必须大于等于右边匹配的元素个数**这一性质,否则无法配对成功。<br>
+     ```cpp
+      void backtrack(int left, int right, string& current, vector<string>& result) {
+          if (left < 0 || right < 0 || right < left) {
+              return; // 剪枝条件
           }
+          if (left == 0 && right == 0) {
+              result.push_back(current); // 将当前组合加入结果
+              return;
+          }
+          current.push_back('('); // 选择左括号
+          backtrack(left - 1, right, current, result); // 递归选择下一个元素
+          current.pop_back(); // 撤销选择，回溯
+          
+          current.push_back(')'); // 选择右括号
+          backtrack(left, right - 1, current, result); // 递归选择下一个元素
+          current.pop_back(); // 撤销选择，回溯
       }
-      return st.empty();
-  }
-  ```
-
+     ```
+   - `在一对匹配的括号中不同位置插入合法序列`: 利用**当前匹配的(a)b中的已经互相匹配的前后驱中，可以在a或者b的位置插入适合完整合法的序列，才能构造出当前的两个扩号是一对的**
+        ```cpp
+        unordered_map<int,string> record;
+        vector<string> generateParenthesis(int n) {
+            if(record.count(n)) return record[n]; // 使用记忆化避免重复计算
+            if (n == 0) return {""};
+            vector<string> result;
+            for (int i = 0; i < n; ++i) {
+                for (const string& left : generateParenthesis(i)) {
+                    for (const string& right : generateParenthesis(n - 1 - i)) {
+                        result.push_back("(" + left + ")" + right);
+                    }
+                }
+            }
+            record[n] = result; // 记录结果，避免重复计算
+            return result;
+        }
+        ```
+    - `一对紧邻的括号插入合法序列`: 在一对紧邻的括号中插入合法序列
+       ```cpp
+        vector<string> generateParenthesis(int n) {
+           if (n == 1) return {"()"};
+           unordered_map<string, int> a;
+           vector<string> res;
+           string tmp;
+           for (auto& s: generateParenthesis(n - 1)) {
+               for (int i = 0; i != 2 * (n - 1); ++i) {
+                   tmp = s.substr(0, i) + "()" + s.substr(i, 2 * (n - 1));
+                   if (a[tmp] == 0) { // 避免重复
+                       ++a[tmp];
+                       res.emplace_back(tmp);
+                   }
+               }
+           }
+           return res;
+        }
+       ```
 
 ## 反序问题：反转字符串/数组的方法
 - 使用`双指针`法:
@@ -452,6 +685,163 @@ void dfs(TreeNode* root) {
     }
 }
 ```
+
+## 前 k 大元素
+- **堆(对于动态插入)**：
+    - 使用一个大小为 `k` 的最小堆来维护当前的前 `k` 大元素。
+    - 遍历输入的元素，对于每个元素，如果堆的大小小于 `k`，则直接将元素加入堆中；如果堆的大小等于 `k`，则比较当前元素与堆顶元素（最小元素），如果当前元素更大，则弹出堆顶元素并将当前元素加入堆中。
+    - 最终，堆中的元素就是前 `k` 大的元素。
+    时间复杂度为 O(n log k)，其中 n 是输入元素的数量，k 是需要找出的前 k 大元素的数量。
+    ```C++
+    vector<int> topKFrequent(vector<int>& nums, int k) {
+        unordered_map<int, int> frequency; // 统计每个元素的频率
+        for (int num : nums) {
+            frequency[num]++;
+        }
+
+        auto cmp = [](const pair<int, int>& a, const pair<int, int>& b) {
+            return a.second > b.second; // 按照频率从小到大排序
+        };
+        priority_queue<pair<int, int>, vector<pair<int, int>>, decltype(cmp)> minHeap(cmp); // 最小堆
+
+        for (const auto& entry : frequency) {
+            minHeap.push(entry); // 将元素和频率加入堆中
+            if (minHeap.size() > k) { // 如果堆的大小超过 k，弹出堆顶元素
+                minHeap.pop();
+            }
+        }
+
+        vector<int> result;
+        while (!minHeap.empty()) {
+            result.push_back(minHeap.top().first); // 将堆顶元素的值加入结果
+            minHeap.pop();
+        }
+        return result;
+    }
+    ```
+- **快速选择算法(对于静态数组)**：
+       `nth_element`算法可以在平均 O(n) 的时间复杂度内找到第 `k` 大的元素。通过使用 `nth_element`，我们可以将数组分成两部分：前 `k` 大的元素和剩余的元素。然后，我们可以直接返回前 `k` 大的元素。
+    ```C++
+    vector<int> topKFrequent(vector<int>& nums, int k) {
+        unordered_map<int, int> frequency; // 统计每个元素的频率
+        for (int num : nums) {
+            frequency[num]++;
+        }   
+        vector<pair<int, int>> freqVec(frequency.begin(), frequency.end()); // 将频率信息转换为向量
+        auto cmp = [](const pair<int, int>& a, const pair<int, int>& b) {
+            return a.second > b.second; // 按照频率从大到小排序
+        };
+        nth_element(freqVec.begin(), freqVec.begin() + k - 1, freqVec.end(), cmp); // 使用 nth_element 找到第 k 大的元素
+        vector<int> result;
+        for (int i = 0; i < k; ++i) {
+            result.push_back(freqVec[i].first); // 将前 k 大的元素加入结果
+        }
+        return result;
+    }
+    ```
+**对比**：
+    - 堆适用于需要`动态`插入元素的情况，而快速选择算法适用于`静态`数组的情况。
+    - 堆的时间复杂度为 `O(n log k)`，而快速选择算法的平均时间复杂度为`O(n)`，在实际应用中，快速选择算法通常比堆更快，尤其是当 k 较小的时候。
+    - 堆适用于当`数据量非常大`时，因为它只需要维护一个大小为 k 的堆，而快速选择算法需要对`整个数组`进行操作。
+
+## 中位数
+中位数**实质上**是一个特殊的`第 k 大元素`问题,其中 k 是数组长度的一半。对于中位数问题，我们可以使用与前 k 大元素类似的方法来解决。
+
+### 动态数据流中的中位数
+- **双堆法**：
+  - 使用一个最大堆来存储较小的一半元素，使用一个最小堆来存储较大的一半元素。
+  - 保持两个堆的大小平衡，或者最大堆的大小比最小堆大1。
+  - 当需要获取中位数时，如果两个堆的大小相等，则中位数是两个堆顶元素的平均值；如果最大堆的大小比最小堆大1，则中位数是最大堆的堆顶元素。
+  - 插入元素时，根据元素的值与当前中位数的关系，将元素插入到相应的堆中，并调整堆的大小以保持平衡。
+  - 时间复杂度为 O(log n) 用于插入元素，获取中位数的时间复杂度为 O(1)。
+    ```C++
+    class MedianFinder {
+        private:
+            priority_queue<int> max_heap_;
+            priority_queue<int, vector<int>, greater<int>> min_heap_;
+        public:
+            MedianFinder() {
+
+            }
+
+            void addNum(int num) {
+                if(max_heap_.empty() || num <= max_heap_.top()) {
+                    max_heap_.push(num);
+                    if(max_heap_.size() > min_heap_.size() + 1) {
+                        min_heap_.push(max_heap_.top());
+                        max_heap_.pop();
+                    }
+                }else{
+                    min_heap_.push(num);
+                    if(min_heap_.size() > max_heap_.size()) {
+                        max_heap_.push(min_heap_.top());
+                        min_heap_.pop();
+                    }
+                }   
+            }
+
+            double findMedian() {
+                if(max_heap_.size() > min_heap_.size()) {
+                    return max_heap_.top();
+                } else {
+                    return (max_heap_.top() + min_heap_.top()) / 2.0;
+                }
+            }
+    };
+    ```
+- **红黑树**：
+    - 使用一个平衡二叉搜索树（如红黑树）来存储所有元素，并维护一个指向中位数的指针。
+    - 插入元素时，根据元素的值与当前中位数的关系，将元素插入到树中，并调整指针以保持指向正确的中位数。
+    - 获取中位数的时间复杂度为 O(1)，插入元素的时间复杂度为 O(log n)。
+    ![alt text](images/image-7.png)
+    ```C++
+    class MedianFinder {
+        private:
+        multiset<int> nums; // 使用 multiset 来存储元素，保持有序
+        multiset<int>::iterator left, right;
+
+        public:
+            MedianFinder() : left(nums.end()), right(nums.end()) {}
+
+            void addNum(int num) {
+                const size_t n = nums.size();
+
+                nums.insert(num);
+                if (!n) {
+                    left = right = nums.begin();
+                } else if (n & 1) {
+                    if (num < *left) {
+                        left--;
+                    } else {
+                        right++;
+                    }
+                } else {
+                    if (num > *left && num < *right) {
+                        left++;
+                        right--;
+                    } else if (num >= *right) {
+                        left++;
+                    } else {
+                        right--;
+                        left = right;
+                    }
+                }
+            }
+
+            double findMedian() {
+                return (*left + *right) / 2.0;
+            }
+    };
+    ```  
+### 静态数组中的中位数
+- **快速选择算法**：
+  - 使用快速选择算法来找到数组中第 `n/2` 小的元素（如果数组长度为奇数）或第 `n/2 - 1` 和第 `n/2` 小的元素（如果数组长度为偶数），然后计算中位数。
+  - 时间复杂度为 O(n) 平均情况下，最坏情况下为 O(n^2)。
+  直接使用`kth_element`算法来找到第 `n/2` 小的元素（如果数组长度为奇数）或第 `n/2 - 1` 和第 `n/2` 小的元素（如果数组长度为偶数），然后计算中位数。
+    
+### 对比分析
+   - **动态数据流**中的中位数问题,`multiset`的底层实现是**红黑树**，在每次动态调整中充分利用了之前已经调整好了的结果，所以可以实现`O(log n)`的插入时间复杂度，而**双堆法**更加简单，它也充分利用了排序的结果，但在调整过程中可以不用保证全部元素有序，只有堆顶元素需要满足条件，所以在调整过程中可以更快一些，平均时间复杂度为 O(log n)，在实际应用中，双堆法通常比红黑树更快，尤其是当数据量较大时。
+   - **静态数组**中的中位数问题,`快速选择算法`的`kth_element`算法在平均情况下的时间复杂度为`O(n)`,可以不用对整个数组进行排序，而是通过分区的方式来找到第 `n/2` 小的元素，这样在实际应用中通常比使用堆更快，尤其是当数组长度较大时。
 
 ## 字典树（Trie）
 
@@ -840,6 +1230,8 @@ public:
 - **区间查询**：
   - **区间和**：使用`树状数组`或`线段树`，时间复杂度 O(log n)
   - **区间最值**：使用`稀疏表`(静态数组)或`线段树`(动态数组)，时间复杂度 O(1) 或 O(log n)
+  
+![alt text](images/image-6.png)
 
 | 数据结构 | 适用场景及对应复杂度|
 | --- | --- | 
